@@ -1,0 +1,27 @@
+# Red Cell Simulation: Environment Setup
+# --------------------------------------
+# This file documents the required tools and usage instructions for simulating
+# public and internal network traffic using namespaces on a single Kali machine.
+
+# ========================
+# 🔧 Setup Instructions
+# ========================
+# 1. Install system packages (required once):
+#    sudo apt update && sudo apt install -y \
+#      python3 \
+#      smbclient \
+#      openssh-client \
+#      curl \
+#      iputils-ping \
+#      net-tools \
+#      bridge-utils
+
+# 2. Place the full simulation script at:
+#    /opt/full_sim.py
+#    (You can use chmod +x /opt/full_sim.py if desired)
+
+# 3. Run the combined setup script:
+#    sudo ./start_redcell_hosts.sh
+
+# 4. Let it run. To stop and clean up:
+#    sudo ./cleanup_redcell_hosts.sh
