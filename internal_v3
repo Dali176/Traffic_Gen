@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# CONFIG
+NET_PREFIX="172.16.3"
+MY_IP=$(hostname -I | awk '{print $1}')
+PORTS=(22 80 445 3389)
+TARGETS=()
+
+# Build list of target IPs (excluding our own)
+for i in $(seq 2 11); do
+    IP="$NET_PREFIX.$i"
+    if [[ "$IP" != "$MY_IP" ]]; then
+        TARGETS+=("$IP")
+    fi
+done
+
+echo "[*] Starting fake internal traffic generator from $MY_IP"
+echo "[*] Target IPs: ${TARGETS[*]}"
+
+while true; do
+    for DST_IP in "${TARGETS[@]}"; do
+        echo "[>] Connecting to $DST_IP on ports 22, 80, 445, 3389"
+
+        # Simulate HTTP (port 80)
+        curl --max-time 2 http://$DST_IP >/dev/null 2>&1
+
+        # Simulate TCP connections on 22, 445, 3389
+        for PORT in "${PORTS[@]}"; do
+            # Only port 80 gets curl, others get raw TCP connect
+            if [[ $PORT -ne 80 ]]; then
+                timeout 1 bash -c "echo '' | nc -w 1 -nv $DST_IP $PORT" >/dev/null 2>&1
+            fi
+        done
+        sleep $((RANDOM % 3 + 1))
+    done
+    DELAY=$((RANDOM % 10 + 5))
+    echo "[*] Round complete. Sleeping $DELAY seconds..."
+    sleep $DELAY
+done
