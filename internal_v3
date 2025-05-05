@@ -37,3 +37,39 @@ while true; do
     echo "[*] Round complete. Sleeping $DELAY seconds..."
     sleep $DELAY
 done
+
+
+
+#!/bin/bash
+
+# Configuration
+NET_PREFIX="172.16.3"
+SRC_IPS=($(seq 2 11))   # Spoofed source IPs
+DST_IPS=($(seq 2 11))   # Target IPs
+PORTS=(22 80 445 3389)
+
+echo "[*] Starting spoofed-only internal traffic (no real IP exposure)..."
+
+while true; do
+    for SRC_OCTET in "${SRC_IPS[@]}"; do
+        SRC_IP="$NET_PREFIX.$SRC_OCTET"
+
+        for DST_OCTET in "${DST_IPS[@]}"; do
+            DST_IP="$NET_PREFIX.$DST_OCTET"
+
+            # Skip self-targeting
+            if [[ "$SRC_IP" != "$DST_IP" ]]; then
+                for PORT in "${PORTS[@]}"; do
+                    echo "[>] $SRC_IP -> $DST_IP:$PORT (spoofed SYN)"
+                    sudo hping3 -S -c 1 -a "$SRC_IP" -p "$PORT" "$DST_IP" >/dev/null 2>&1
+                    sleep 0.1
+                done
+            fi
+        done
+    done
+
+    DELAY=$((RANDOM % 5 + 5))
+    echo "[*] Round complete. Sleeping $DELAY seconds..."
+    sleep $DELAY
+done
+
