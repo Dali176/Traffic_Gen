@@ -1,0 +1,79 @@
+#!/bin/bash
+
+BRIDGE="br1"
+NET_PREFIX="172.16.3"
+NUM_HOSTS=10
+PORTS=(22 80 445 3389)
+
+# Create internal bridge if it doesn't exist
+ip link show $BRIDGE >/dev/null 2>&1 || {
+    echo "[*] Creating bridge $BRIDGE..."
+    ip link add $BRIDGE type bridge
+    ip link set $BRIDGE up
+}
+
+# Set up 10 fake hosts
+for i in $(seq 1 $NUM_HOSTS); do
+    NS="red$i"
+    IP="$NET_PREFIX.$((1 + i))"
+    VETH="veth-${NS}"
+    PEER="peer-${NS}"
+
+    echo "[*] Setting up $NS with IP $IP"
+
+    # Cleanup old
+    ip netns del $NS 2>/dev/null
+    ip link del $PEER 2>/dev/null
+
+    # Create namespace and veth
+    ip netns add $NS
+    ip link add $VETH type veth peer name $PEER
+    ip link set $VETH netns $NS
+
+    ip netns exec $NS ip addr add $IP/24 dev $VETH
+    ip netns exec $NS ip link set $VETH up
+    ip netns exec $NS ip link set lo up
+
+    ip link set $PEER master $BRIDGE
+    ip link set $PEER up
+done
+
+echo "[+] All namespaces created and connected to $BRIDGE"
+echo "[*] Starting infinite background traffic loop..."
+
+# Build IP list
+HOST_IPS=()
+for i in $(seq 1 $NUM_HOSTS); do
+    HOST_IPS+=("$NET_PREFIX.$((1 + i))")
+done
+
+# Infinite loop for background traffic
+while true; do
+    for i in $(seq 1 $NUM_HOSTS); do
+        SRC_NS="red$i"
+        SRC_IP="${HOST_IPS[$((i - 1))]}"
+
+        for j in $(seq 1 $NUM_HOSTS); do
+            if [[ $i -ne $j ]]; then
+                DST_IP="${HOST_IPS[$((j - 1))]}"
+                echo "[>] $SRC_NS -> $DST_IP (ports 22, 80, 445, 3389)"
+
+                # Simulate HTTP
+                ip netns exec $SRC_NS curl --max-time 2 http://$DST_IP >/dev/null 2>&1
+
+                # Simulate TCP connects
+                for PORT in "${PORTS[@]}"; do
+                    ip netns exec $SRC_NS timeout 1 bash -c "echo '' | nc -w 1 -nv $DST_IP $PORT" >/dev/null 2>&1
+                done
+
+                # Sleep randomly between each pair
+                sleep $((RANDOM % 3 + 1))
+            fi
+        done
+    done
+
+    # Random delay between full rounds
+    SLEEP_BETWEEN=$((RANDOM % 10 + 5))
+    echo "[*] Sleeping $SLEEP_BETWEEN seconds before next round..."
+    sleep $SLEEP_BETWEEN
+done

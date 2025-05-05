@@ -1,0 +1,7 @@
+#!/bin/bash
+for i in $(seq 1 10); do
+    sudo ip netns del red$i 2>/dev/null
+    sudo ip link del peer-red$i 2>/dev/null
+done
+sudo ip link del br1 2>/dev/null
+echo "[+] Cleanup complete."
